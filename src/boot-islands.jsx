@@ -1,11 +1,11 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import "./index.css";
 
 console.log("[boot] cargado");
 
-// AQUÍ EL CAMBIO: usa /src/islas/*.jsx
+// Carga dinámica de islas y sus estilos
 const loaders = import.meta.glob("/src/islas/*.jsx");
+const styleLoaders = import.meta.glob("/src/islas/*.css", { query: "?string" });
 
 function parseProps(str) {
   if (!str) return {};
@@ -29,7 +29,21 @@ async function mountIslands() {
     const [, loader] = entry;
     const mod = await loader();
     const Comp = mod.default || mod[name];
-    createRoot(el).render(<Comp {...props} />);
+
+    // Crear Shadow DOM y cargar estilos
+    const shadow = el.attachShadow({ mode: "open" });
+    const cssEntry = Object.entries(styleLoaders).find(([p]) =>
+      p.toLowerCase().endsWith(`/islas/${name}.css`.toLowerCase())
+    );
+    if (cssEntry) {
+      const [, cssLoader] = cssEntry;
+      const css = await cssLoader();
+      const style = document.createElement("style");
+      style.textContent = css;
+      shadow.appendChild(style);
+    }
+
+    createRoot(shadow).render(<Comp {...props} />);
     console.log("[boot] montada:", name);
   }
 }
