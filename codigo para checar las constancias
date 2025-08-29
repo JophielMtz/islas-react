@@ -1,0 +1,224 @@
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { Folder, FileText, Search, ChevronRight, Hash, HardDrive } from "lucide-react";
+
+/* ---------------------------------------------------------
+   Archivero IEPC (solo front) – React + TailwindCSS
+   - Minimalista en grises/negros (sin APIs)
+   - Sidebar con grupos (Acuerdos, Actas, Orden)
+   - Buscador global y por columna
+   - Lista de documentos + panel de vista previa
+   - Accesible y responsivo
+--------------------------------------------------------- */
+
+// ---- demo data (simulada) ----
+const DEMO = {
+  acuerdos: [
+    { id: "AC-001/2025", title: "ACUERDO 001/2025 – Sesión Extraordinaria", date: "2025-02-14" },
+    { id: "AC-002/2025", title: "ACUERDO 002/2025 – Presupuesto de egresos IEPC", date: "2025-03-01" },
+    { id: "AC-003/2025", title: "ACUERDO 003/2025 – Lineamientos de Transparencia", date: "2025-03-20" },
+  ],
+  actas: [
+    { id: "ACTA-SE-15", title: "ACTA Sesión Extraordinaria 15 – Marzo 2025", date: "2025-03-22" },
+    { id: "ACTA-OR-08", title: "ACTA Sesión Ordinaria 08 – Febrero 2025", date: "2025-02-10" },
+  ],
+  orden: [
+    { id: "OD-EX-15", title: "Orden del día – Sesión Extraordinaria 15", date: "2025-03-22" },
+    { id: "OD-OR-09", title: "Orden del día – Sesión Ordinaria 09", date: "2025-02-28" },
+  ],
+};
+
+const GROUPS = [
+  { key: "acuerdos", label: "Acuerdos", icon: Folder },
+  { key: "actas", label: "Actas", icon: Folder },
+  { key: "orden", label: "Orden", icon: Folder },
+];
+
+function classNames(...xs) { return xs.filter(Boolean).join(" "); }
+
+function useSlashToFocus(ref) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        ref.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ref]);
+}
+
+function formatDate(d) {
+  try { return new Date(d).toLocaleDateString(); } catch { return d; }
+}
+
+export default function ArchiveroIEPC() {
+  const [group, setGroup] = useState("acuerdos");
+  const [qAll, setQAll] = useState(""); // buscador global
+  const [qDocs, setQDocs] = useState(""); // buscador columna
+  const [selected, setSelected] = useState(null);
+  const globalRef = useRef(null);
+  useSlashToFocus(globalRef);
+
+  const allDocs = useMemo(() => ({
+    acuerdos: DEMO.acuerdos,
+    actas: DEMO.actas,
+    orden: DEMO.orden,
+  }), []);
+
+  const filteredByGroup = useMemo(() => {
+    const g = allDocs[group] || [];
+    const fuse = (txt) => [qAll, qDocs].every(v => (v?.trim()?.length ?? 0) === 0 || (txt.toLowerCase().includes(v.toLowerCase())));
+    return g.filter(it => fuse(it.title) || fuse(it.id));
+  }, [group, allDocs, qAll, qDocs]);
+
+  useEffect(() => {
+    // Reiniciar selección cuando cambia el grupo o filtros
+    setSelected(null);
+  }, [group, qAll, qDocs]);
+
+  return (
+    <div className="min-h-screen bg-neutral-50 text-neutral-900">
+      {/* Header */}
+      <div className="border-b border-neutral-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center gap-3">
+          <div className="flex items-center gap-2 text-neutral-800">
+            <HardDrive className="w-5 h-5" aria-hidden />
+            <h1 className="text-lg font-semibold tracking-tight">Archivos</h1>
+            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 border border-neutral-300 rounded text-neutral-600">IEPC</span>
+          </div>
+
+          <div className="ml-auto w-full max-w-3xl relative">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-neutral-400" aria-hidden />
+            <input
+              ref={globalRef}
+              value={qAll}
+              onChange={(e) => setQAll(e.target.value)}
+              placeholder="Buscar en todo (atajo “/”)…"
+              className="w-full rounded-lg border border-neutral-300 bg-white pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-400"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <div className="grid grid-cols-12 gap-4">
+          {/* Sidebar */}
+          <aside className="col-span-3 xl:col-span-2">
+            <nav className="rounded-xl border border-neutral-200 bg-white p-2">
+              {GROUPS.map((g) => (
+                <button
+                  key={g.key}
+                  onClick={() => setGroup(g.key)}
+                  className={classNames(
+                    "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition",
+                    group === g.key
+                      ? "bg-neutral-900 text-white"
+                      : "hover:bg-neutral-100 text-neutral-800"
+                  )}
+                >
+                  {/* icono tamaño fijo para que el texto no lo deforme */}
+                  <g.icon className="w-4 h-4 flex-none" aria-hidden />
+                  <span className="flex-1 text-left truncate">{g.label}</span>
+                  <ChevronRight className="w-4 h-4 opacity-60 flex-none" aria-hidden />
+                </button>
+              ))}
+            </nav>
+          </aside>
+
+          {/* Lista de documentos */}
+          <section className="col-span-9 xl:col-span-4">
+            <div className="rounded-xl border border-neutral-200 bg-white">
+              <div className="p-3 border-b border-neutral-200 relative">
+                <Search className="absolute left-4 top-4 w-4 h-4 text-neutral-400" aria-hidden />
+                <input
+                  value={qDocs}
+                  onChange={(e) => setQDocs(e.target.value)}
+                  placeholder="Buscar documentos…"
+                  className="w-full rounded-lg border border-neutral-300 bg-white pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-400"
+                />
+              </div>
+
+              <ul className="max-h-[520px] overflow-auto divide-y divide-neutral-100">
+                {filteredByGroup.length === 0 && (
+                  <li className="p-6 text-sm text-neutral-500">Sin resultados.</li>
+                )}
+                {filteredByGroup.map((it) => (
+                  <li key={it.id}>
+                    <button
+                      onClick={() => setSelected(it)}
+                      className={classNames(
+                        "w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-neutral-50",
+                        selected?.id === it.id ? "bg-neutral-100" : ""
+                      )}
+                    >
+                      <FileText className="w-5 h-5 flex-none text-neutral-700" aria-hidden />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-neutral-900 truncate">{it.title}</p>
+                        <p className="text-xs text-neutral-500 truncate">{it.id} · {formatDate(it.date)}</p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* Vista previa */}
+          <section className="hidden xl:block xl:col-span-6">
+            <div className="rounded-xl border border-neutral-200 bg-white h-full min-h-[620px] flex flex-col">
+              {!selected ? (
+                <div className="flex-1 grid place-items-center p-10 text-center text-neutral-500">
+                  <div>
+                    <FileText className="w-10 h-10 mx-auto mb-2 text-neutral-400" aria-hidden />
+                    <p className="text-sm">Selecciona un documento para ver su vista previa.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 p-6 space-y-6">
+                  <header className="space-y-1">
+                    <h2 className="text-lg font-semibold text-neutral-900">{selected.title}</h2>
+                    <p className="text-sm text-neutral-500">{selected.id} · {formatDate(selected.date)}</p>
+                  </header>
+
+                  <div className="rounded-lg border border-neutral-200 p-4 bg-neutral-50">
+                    <p className="text-sm text-neutral-700 leading-6">
+                      Esta es una vista previa estática (demo). Aquí podrías mostrar un PDF embebido, 
+                      metadatos del expediente o acciones como descargar, ver en otra pestaña, etc. 
+                      No hay integración a API, sólo presentación de interfaz.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-neutral-200 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-neutral-500">Clasificación</p>
+                      <p className="text-sm font-medium mt-1">{GROUPS.find(g => g.key === group)?.label}</p>
+                    </div>
+                    <div className="rounded-lg border border-neutral-200 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-neutral-500">Folio</p>
+                      <p className="text-sm font-medium mt-1">{selected.id}</p>
+                    </div>
+                    <div className="rounded-lg border border-neutral-200 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-neutral-500">Fecha</p>
+                      <p className="text-sm font-medium mt-1">{formatDate(selected.date)}</p>
+                    </div>
+                    <div className="rounded-lg border border-neutral-200 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-neutral-500">Estatus</p>
+                      <p className="text-sm font-medium mt-1">Público</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="py-8 text-center text-xs text-neutral-500">
+        Archivero IEPC · interfaz demo en grises/negros · sin API
+      </footer>
+    </div>
+  );
+}
