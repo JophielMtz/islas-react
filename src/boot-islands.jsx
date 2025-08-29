@@ -5,7 +5,7 @@ console.log("[boot] cargado");
 
 // Carga dinámica de islas y sus estilos
 const loaders = import.meta.glob("/src/islas/*.jsx");
-const styleLoaders = import.meta.glob("/src/islas/*.css", { query: "?string" });
+const styleLoaders = import.meta.glob("/src/islas/*.css", { as: "raw" });
 
 function parseProps(str) {
   if (!str) return {};
